@@ -4,6 +4,7 @@
 
 
 <h2 align="left">Example</h2>
+
 ```python
 from archive_tool import make_archive, extract_archive
 
