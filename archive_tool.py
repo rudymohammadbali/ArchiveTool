@@ -1,41 +1,26 @@
 import os
 import shutil
 from pathlib import Path
+from typing import Callable
 
 import py7zr
 
 
-class UnsupportedArchiveFormatError(Exception):
-    def __init__(self, archive_format: str):
-        super().__init__(f"Unsupported archive format: {archive_format}")
-
-
-def path_exists(path: str) -> bool:
-    return os.path.exists(path)
-
-
-def make_archive(dir_path: str, output_path: str, archive_format: str) -> bool:
-    """
-        Create an archive (ZIP, tar, gztar, bztar, xztar, 7z, or RAR) from the specified directory.
-
-        Args:
-            dir_path (str): Path to the input directory.
-            output_path (str): Path to the output folder where the archive will be saved.
-            archive_format (str): Desired archive format ("zip", "tar", "gztar", "bztar", "xztar", "7z", "rar").
-
-        Returns:
-            bool: True if the archive was created successfully, False otherwise.
-        """
+def make_archive(dir_path: str, output_path: str, archive_format: str, on_success: Callable,
+                 on_failure: Callable) -> None:
     archive_formats = ["zip", "tar", "gztar", "bztar", "xztar", "7z", "rar"]
 
-    if not path_exists(dir_path):
-        raise NotADirectoryError(f"Input folder {dir_path} does not exists.")
+    if not os.path.exists(dir_path):
+        on_failure(f"Input folder {dir_path} does not exists.")
+        return
 
-    if not path_exists(output_path):
-        raise NotADirectoryError(f"Output folder {output_path} does not exists.")
+    if not os.path.exists(output_path):
+        on_failure(f"Output folder {output_path} does not exists.")
+        return
 
     if archive_format.lower() not in archive_formats:
-        raise UnsupportedArchiveFormatError(archive_format)
+        on_failure(f"Unsupported format: {archive_format}. Supported formats are:\n{archive_formats}")
+        return
 
     folder_name = os.path.basename(os.path.dirname(dir_path))
     folder_path = str(Path(output_path) / folder_name)
@@ -47,28 +32,19 @@ def make_archive(dir_path: str, output_path: str, archive_format: str) -> bool:
                 archive.writeall(input_folder, arcname=os.path.basename(input_folder))
         else:
             shutil.make_archive(folder_path, archive_format.lower(), dir_path)
-        return True
+        on_success(f"Archive {archive_format} created, and saved as:\n{folder_path}")
     except Exception as e:
-        print(f"Error creating archive file for {dir_path}: {e}")
-        return False
+        on_failure(f"Error while creating archive file for {dir_path}:\n{e}")
 
 
-def extract_archive(archive_path: str, extraction_dir: str) -> bool:
-    """
-        Extracts files from an archive (ZIP, tar, gztar, bztar, xztar, 7z, or RAR) to the specified directory.
+def extract_archive(archive_path: str, extraction_dir: str, on_success: Callable, on_failure: Callable) -> None:
+    if not os.path.exists(archive_path):
+        on_failure(f"Archive folder {archive_path} does not exists.")
+        return
 
-        Args:
-            archive_path (str): Path to the archive file.
-            extraction_dir (str): Directory where the contents will be extracted.
-
-        Returns:
-            bool: True if extraction is successful, False otherwise.
-        """
-    if not path_exists(archive_path):
-        raise NotADirectoryError(f"Archive folder {archive_path} does not exists.")
-
-    if not path_exists(extraction_dir):
-        raise NotADirectoryError(f"Extraction folder {extraction_dir} does not exists.")
+    if not os.path.exists(extraction_dir):
+        on_failure(f"Extraction folder {extraction_dir} does not exists.")
+        return
 
     filename, extension = os.path.splitext(os.path.basename(archive_path))
 
@@ -78,7 +54,6 @@ def extract_archive(archive_path: str, extraction_dir: str) -> bool:
                 archive.extractall(path=extraction_dir)
         else:
             shutil.unpack_archive(archive_path, extraction_dir)
-        return True
+        on_success(f"Your files have been successfully extracted to:\n{extraction_dir}")
     except Exception as e:
-        print(f"Error extracting archive file for {archive_path}: {e}")
-        return False
+        on_failure(f"Error while extracting archive file for {archive_path}: {e}")
